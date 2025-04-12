@@ -1,46 +1,52 @@
 import streamlit as st
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from pdfminer.high_level import extract_text
+from sentence_transformers import SentenceTransformer, util
+import PyPDF2
+import io
 
-# Function to extract text from PDF file
+# Load model
+@st.cache_resource
+def load_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+model = load_model()
+
+# Function to extract text from PDF
 def extract_text_from_pdf(pdf_file):
-    text = extract_text(pdf_file)
+    reader = PyPDF2.PdfReader(pdf_file)
+    text = ''
+    for page in reader.pages:
+        text += page.extract_text() or ''
     return text
 
-# Function to compute similarity between job description and resume
-def get_similarity(job_desc, resume_text):
-    # Create the tf-idf vectorizer
-    vectorizer = TfidfVectorizer(stop_words='english')
-    
-    # Vectorize the job description and resume
-    vectors = vectorizer.fit_transform([job_desc, resume_text])
-    
-    # Compute the cosine similarity
-    cosine_sim = cosine_similarity(vectors[0:1], vectors[1:2])
-    return cosine_sim[0][0]
+# Streamlit UI
+st.title("🧠 Resume Matcher")
+st.markdown("Match your resume with a job description using semantic similarity.")
 
-# Streamlit UI for the app
-st.title("Resume-Job Description Matcher")
+# Upload resume
+uploaded_resume = st.file_uploader("Upload your resume (PDF only)", type="pdf")
 
-# Input job description as text
-job_desc = st.text_area("Enter Job Description (Copy-Paste)", height=200)
+# Text input for job description
+job_desc = st.text_area("Paste the Job Description here")
 
-# Upload resume (PDF file)
-resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+if uploaded_resume and job_desc:
+    # Extract resume text
+    resume_text = extract_text_from_pdf(uploaded_resume)
 
-if job_desc and resume_file is not None:
-    # Extract text from the uploaded resume PDF file
-    resume_text = extract_text_from_pdf(resume_file)
-    
-    # Display extracted resume text (optional)
-    st.subheader("Resume Text")
-    st.write(resume_text)
+    # Encode both texts
+    resume_embedding = model.encode(resume_text, convert_to_tensor=True)
+    jd_embedding = model.encode(job_desc, convert_to_tensor=True)
 
-    # Get the similarity score
-    similarity = get_similarity(job_desc, resume_text)
+    # Calculate cosine similarity
+    similarity_score = util.pytorch_cos_sim(resume_embedding, jd_embedding).item()
+    similarity_percent = round(similarity_score * 100, 2)
 
-    # Display the similarity score
-    st.subheader("Similarity Score")
-    st.write(f"The similarity between the resume and job description is: {similarity * 100:.2f}%")
+    st.metric("Matching Score (%)", f"{similarity_percent}%")
 
+    if similarity_percent > 75:
+        st.success("Great match! 🎯")
+    elif similarity_percent > 50:
+        st.info("Decent match. Can be improved.")
+    else:
+        st.warning("Low match. Try tweaking your resume.")
+else:
+    st.info("Please upload a resume and paste the job description to continue.")
