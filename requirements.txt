@@ -1,3 +1,4 @@
 streamlit
-scikit-learn
-pdfminer.six
+sentence-transformers
+torch
+PyPDF2
