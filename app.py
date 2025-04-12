@@ -1,57 +1,61 @@
 import streamlit as st
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
+import fitz  # PyMuPDF
 
 # Load sentence transformer model
 model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Function to extract text from PDF
+def extract_text_from_pdf(pdf_file):
+    doc = fitz.open(pdf_file)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
 
 # Title
 st.title("📄 Resume - Job Matcher")
 
 # Sidebar
-st.sidebar.title("Upload Resume Dataset")
-uploaded_file = st.sidebar.file_uploader("Upload resumes.csv", type=["csv"])
-
-# Load default or uploaded resumes
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-else:
-    # Fallback to default
-    df = pd.DataFrame({
-        "Name": ["Alice", "Bob", "Charlie", "Diana"],
-        "Resume": [
-            "Data analyst with Python, SQL, PowerBI and machine learning.",
-            "Backend engineer with Java, Spring Boot, and REST APIs.",
-            "NLP engineer skilled in BERT, transformers, and text classification.",
-            "Data scientist with deep learning, PyTorch, and statistics experience."
-        ]
-    })
+st.sidebar.title("Upload Resume PDFs")
+uploaded_files = st.sidebar.file_uploader("Upload resume PDFs", type=["pdf"], accept_multiple_files=True)
 
 # Input job description
 st.subheader("📌 Paste the Job Description")
 job_description = st.text_area("Enter job description here:")
 
-# Match button
-if st.button("🔍 Find Top Matches"):
-    if job_description.strip() == "":
-        st.warning("Please enter a job description.")
-    else:
-        # Encode JD
-        jd_embedding = model.encode(job_description, convert_to_tensor=True)
+# Handle resume files
+if uploaded_files:
+    resumes = []
+    for uploaded_file in uploaded_files:
+        resume_text = extract_text_from_pdf(uploaded_file)
+        resumes.append({"name": uploaded_file.name, "text": resume_text})
 
-        results = []
-        for _, row in df.iterrows():
-            res_embedding = model.encode(row['Resume'], convert_to_tensor=True)
-            score = util.pytorch_cos_sim(jd_embedding, res_embedding).item()
-            results.append((row['Name'], row['Resume'], round(score, 2)))
+    # Match button
+    if st.button("🔍 Find Top Matches"):
+        if job_description.strip() == "":
+            st.warning("Please enter a job description.")
+        else:
+            # Encode JD
+            jd_embedding = model.encode(job_description, convert_to_tensor=True)
 
-        # Sort by score
-        results.sort(key=lambda x: x[2], reverse=True)
+            # Calculate similarity scores
+            results = []
+            for resume in resumes:
+                res_embedding = model.encode(resume["text"], convert_to_tensor=True)
+                score = util.pytorch_cos_sim(jd_embedding, res_embedding).item()
+                results.append((resume["name"], resume["text"], round(score, 2)))
 
-        # Show results
-        st.subheader("🎯 Top Resume Matches")
-        for i, (name, resume, score) in enumerate(results):
-            st.markdown(f"### Rank #{i+1}: {name}")
-            st.markdown(f"**Match Score:** `{score}`")
-            st.markdown(f"**Resume Summary:** {resume}")
-            st.markdown("---")
+            # Sort by score
+            results.sort(key=lambda x: x[2], reverse=True)
+
+            # Display results
+            st.subheader("🎯 Top Resume Matches")
+            for i, (name, resume, score) in enumerate(results):
+                st.markdown(f"### Rank #{i+1}: {name}")
+                st.markdown(f"**Match Score:** `{score}`")
+                st.markdown(f"**Resume Summary (First 500 characters):** {resume[:500]}...")
+                st.markdown("---")
+else:
+    st.info("Please upload resume PDFs.")
