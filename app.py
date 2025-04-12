@@ -2,14 +2,11 @@ import streamlit as st
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import fitz  # PyMuPDF
-import torch
 import tempfile
+import torch
 
-# Set the model to load on CPU
-device = torch.device('cpu')  # Ensure the model runs on CPU
-
-# Load the model on CPU
-model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+# Force the model to use CPU
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Function to extract text from PDF
 def extract_text_from_pdf(pdf_file):
