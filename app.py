@@ -1,72 +1,51 @@
 import streamlit as st
-import pandas as pd
-from sentence_transformers import SentenceTransformer, util
-import fitz  # PyMuPDF
-import tempfile
-import torch
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from pdfminer.high_level import extract_text
+import os
 
-# Force the model to use CPU by default
-device = 'cpu'
-
-# Load the model with the CPU device
-model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
-
-# Function to extract text from PDF
+# Function to extract text from PDF file
 def extract_text_from_pdf(pdf_file):
-    # Create a temporary file and save the uploaded PDF content
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(pdf_file.read())  # Save uploaded file content to temp file
-        tmp_file_path = tmp_file.name  # Get the path of the temp file
-    
-    # Open the temporary file with PyMuPDF (fitz)
-    doc = fitz.open(tmp_file_path)
-    text = ""
-    for page in doc:
-        text += page.get_text()
+    text = extract_text(pdf_file)
     return text
 
-# Title
-st.title("📄 Resume - Job Matcher")
+# Function to compute similarity between job description and resume
+def get_similarity(job_desc, resume_text):
+    # Create the tf-idf vectorizer
+    vectorizer = TfidfVectorizer(stop_words='english')
+    
+    # Vectorize the job description and resume
+    vectors = vectorizer.fit_transform([job_desc, resume_text])
+    
+    # Compute the cosine similarity
+    cosine_sim = cosine_similarity(vectors[0:1], vectors[1:2])
+    return cosine_sim[0][0]
 
-# Sidebar
-st.sidebar.title("Upload Resume PDFs")
-uploaded_files = st.sidebar.file_uploader("Upload resume PDFs", type=["pdf"], accept_multiple_files=True)
+# Streamlit UI for the app
+st.title("Resume-Job Description Matcher")
 
-# Input job description
-st.subheader("📌 Paste the Job Description")
-job_description = st.text_area("Enter job description here:")
+# Upload job description text file
+job_desc_file = st.file_uploader("Upload Job Description (Text File)", type=["txt"])
+resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 
-# Handle resume files
-if uploaded_files:
-    resumes = []
-    for uploaded_file in uploaded_files:
-        resume_text = extract_text_from_pdf(uploaded_file)
-        resumes.append({"name": uploaded_file.name, "text": resume_text})
+if job_desc_file is not None and resume_file is not None:
+    # Read the uploaded job description text file
+    job_desc = job_desc_file.read().decode("utf-8")
 
-    # Match button
-    if st.button("🔍 Find Top Matches"):
-        if job_description.strip() == "":
-            st.warning("Please enter a job description.")
-        else:
-            # Encode JD
-            jd_embedding = model.encode(job_description, convert_to_tensor=True)
+    # Extract text from the uploaded resume PDF file
+    resume_text = extract_text_from_pdf(resume_file)
+    
+    # Display extracted text (optional)
+    st.subheader("Job Description")
+    st.write(job_desc)
+    
+    st.subheader("Resume Text")
+    st.write(resume_text)
 
-            # Calculate similarity scores
-            results = []
-            for resume in resumes:
-                res_embedding = model.encode(resume["text"], convert_to_tensor=True)
-                score = util.pytorch_cos_sim(jd_embedding, res_embedding).item()
-                results.append((resume["name"], resume["text"], round(score, 2)))
+    # Get the similarity score
+    similarity = get_similarity(job_desc, resume_text)
 
-            # Sort by score
-            results.sort(key=lambda x: x[2], reverse=True)
+    # Display the similarity score
+    st.subheader("Similarity Score")
+    st.write(f"The similarity between the resume and job description is: {similarity * 100:.2f}%")
 
-            # Display results
-            st.subheader("🎯 Top Resume Matches")
-            for i, (name, resume, score) in enumerate(results):
-                st.markdown(f"### Rank #{i+1}: {name}")
-                st.markdown(f"**Match Score:** `{score}`")
-                st.markdown(f"**Resume Summary (First 500 characters):** {resume[:500]}...")
-                st.markdown("---")
-else:
-    st.info("Please upload resume PDFs.")
