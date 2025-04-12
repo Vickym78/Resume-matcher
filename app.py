@@ -5,8 +5,10 @@ import fitz  # PyMuPDF
 import torch
 import tempfile
 
-# Force the model to run on CPU to avoid GPU issues
+# Set the model to load on CPU
 device = torch.device('cpu')  # Ensure the model runs on CPU
+
+# Load the model on CPU
 model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 
 # Function to extract text from PDF
