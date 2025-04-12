@@ -2,13 +2,20 @@ import streamlit as st
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import fitz  # PyMuPDF
+import tempfile
 
 # Load sentence transformer model
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Function to extract text from PDF
 def extract_text_from_pdf(pdf_file):
-    doc = fitz.open(pdf_file)
+    # Create a temporary file and save the uploaded PDF content
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(pdf_file.read())  # Save uploaded file content to temp file
+        tmp_file_path = tmp_file.name  # Get the path of the temp file
+    
+    # Open the temporary file with PyMuPDF (fitz)
+    doc = fitz.open(tmp_file_path)
     text = ""
     for page in doc:
         text += page.get_text()
