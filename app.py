@@ -2,7 +2,6 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from pdfminer.high_level import extract_text
-import os
 
 # Function to extract text from PDF file
 def extract_text_from_pdf(pdf_file):
@@ -24,21 +23,17 @@ def get_similarity(job_desc, resume_text):
 # Streamlit UI for the app
 st.title("Resume-Job Description Matcher")
 
-# Upload job description text file
-job_desc_file = st.file_uploader("Upload Job Description (Text File)", type=["txt"])
+# Input job description as text
+job_desc = st.text_area("Enter Job Description (Copy-Paste)", height=200)
+
+# Upload resume (PDF file)
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 
-if job_desc_file is not None and resume_file is not None:
-    # Read the uploaded job description text file
-    job_desc = job_desc_file.read().decode("utf-8")
-
+if job_desc and resume_file is not None:
     # Extract text from the uploaded resume PDF file
     resume_text = extract_text_from_pdf(resume_file)
     
-    # Display extracted text (optional)
-    st.subheader("Job Description")
-    st.write(job_desc)
-    
+    # Display extracted resume text (optional)
     st.subheader("Resume Text")
     st.write(resume_text)
 
